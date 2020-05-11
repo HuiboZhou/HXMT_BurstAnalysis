@@ -2,7 +2,7 @@
 
 ## LE staturation correction
 
-Correct the light curve for each DetBox of LE telescope based on the forced trigger event rate and of the three LE DetBox. The light curves of the three DetBoxs are weighted and averaged according to the number of detectors in each DetBox.
+Correct the light curve for each DetBox of LE telescope based on the forced trigger event rate of the three LE DetBoxs. The light curves of the three DetBoxs are weighted and averaged according to the number of detectors in each DetBox.
 
 ```LE_saturation_cor.py```
 

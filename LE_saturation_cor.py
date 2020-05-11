@@ -1,4 +1,4 @@
-from __future__ import division
+#!/usr/bin/env python
 from astropy.io import fits 
 import matplotlib.pyplot as plt
 import numpy as np

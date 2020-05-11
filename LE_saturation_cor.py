@@ -3,7 +3,51 @@ from astropy.io import fits
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.time import Time
+import sys
 
+def create_lightcurve_file(time, rate, error, outfile, **kwargs):
+    
+    # Table
+    c1 = fits.Column(name='TIME', array=time, format='1D')
+    c2 = fits.Column(name='RATE', array=rate, format='1E')
+    c3 = fits.Column(name='ERROR', array=error, format='1E')
+
+    tb = fits.BinTableHDU.from_columns([c1,c2,c3])
+    # Prmary Header
+    header = fits.Header()
+    primary_hdr = fits.Header()
+    primary_hdr['comments'] = 'FITS(Flexible Image Transport System)'
+    primary_hdu = fits.PrimaryHDU(header=primary_hdr)
+    
+    hdul = fits.HDUList([primary_hdu, tb])
+    hdul.writeto(outfile,overwrite=True)
+    
+    # write Keywords
+    TRUE = np.bool(True)
+    FALSE = np.bool(False)
+    hdulist = fits.open(outfile)
+    hdulist[1].header['TIMESYS'] = 'TT'
+    hdulist[1].header['MJDREFI'] = 55927
+    hdulist[1].header['MJDREFF'] = 7.6601852e-4
+    hdulist[1].header['TIMEREF'] = 'LOCAL'
+    hdulist[1].header['TASSIGN'] = 'SATELLITE'
+    hdulist[1].header['TIMEUNIT']= 's'
+    hdulist[1].header['TIMEDEL'] = kwargs['binsize']
+    hdulist[1].header['TIERRELA']= 1e-6
+    hdulist[1].header['TIERABSO']= 5e-5
+    hdulist[1].header['CLOCKAPP']= FALSE
+    hdulist[1].header['TSTART']  = kwargs['starttime']
+    hdulist[1].header['TSTOP']   = kwargs['stoptime']
+
+def get_args(argv):
+    keywords = []
+    values  = []
+    for i in range(len(argv)):
+        if i == 0: continue
+        keywords.append(argv[i].split('=')[0])
+        values.append(argv[i].split('=')[1])
+    arguments = dict(zip(keywords, values))
+    return arguments
 
 def genlc(data,binsize=1,fig=False,rate=True,pannel=True):
     N = (max(data)-min(data))/binsize
@@ -30,47 +74,6 @@ def genlc_bin(data, bins, rate=True):
     #print null
     return lc_time,lc
 
-def read_one_box(filename, evtfilename):
-    data = np.loadtxt(filename)
-    evttype = np.array([x[0] for x in data])
-    detid   = np.array([x[1] for x in data])
-    channel = np.array([x[2] for x in data])
-    data = np.loadtxt(evtfilename)
-    time = data
-    return time, detid, channel, evttype
-
-def select(time, detid, channel, evttype):
-    le_small_detid = np.array([0,2,3,4,6,7,8,9,10,12,
-        14,20,22,23,24,25,26,28,30,32,34,35,36,38,39,40,41,42,44,46,52,54,55,56,57,58,60,61,62,64,66,67,68,70,71,72,73,74,76,78,84,86,88,89,90,92,93,94])
-    new_time =       time[(evttype==0)&(np.isin(detid,le_small_detid))&(channel>=400)&(channel<=4000)]
-    new_evttype = evttype[(evttype==1)&(np.isin(detid,le_small_detid))&(channel>=400)&(channel<=4000)]
-    new_detid =     detid[(evttype==1)&(np.isin(detid,le_small_detid))&(channel>=400)&(channel<=4000)]
-    new_channel=  channel[(evttype==1)&(np.isin(detid,le_small_detid))&(channel>=400)&(channel<=4000)]
-    return new_time, new_evttype, new_detid, new_channel
-
-def czcf_lc(time, evttype, resolution):
-    print(len(time), len(evttype))
-    time0, czcf_rate = genlc1(time[evttype==1], bins=np.arange(262708466.999120, 262708469.876226,resolution))
-    return time0, czcf_rate
-
-def coeff(time, czcf_rate0, czcf_rate1, czcf_rate2):
-    x0 = 19
-    x1 = 20
-    x2 = 19
-    print("LLLLLLLL", czcf_rate0[czcf_rate0<1000])
-    coeff0 = np.array([x0*1000./x if x>0 else 0 for x in czcf_rate0])
-    coeff1 = np.array([x1*1000./x if x>0 else 0 for x in czcf_rate1])
-    coeff2 = np.array([x2*1000./x if x>0 else 0 for x in czcf_rate2])
-    print("LLLLLLLLL", coeff0, coeff1, coeff2)
-
-    return coeff0, coeff1, coeff2
-
-def cal_coeff1(time, czcf_rate0, czcf_rate1, czcf_rate2):
-    coeff0 = np.array([19 if x>0 else 0 for x in czcf_rate0])
-    coeff1 = np.array([20 if x>0 else 0 for x in czcf_rate1])
-    coeff2 = np.array([19 if x>0 else 0 for x in czcf_rate2])
-
-    return coeff0, coeff1, coeff2
 
 def select_oneboxtime(time, boxnum=0, **kwargs):
     le_small_detid = np.array([0,2,3,4,6,7,8,9,10,12,
@@ -129,6 +132,8 @@ def detnum_cor(time, *args):
 
 
 def saturation_cor(screenfile, evtfile, **kwargs):
+    if kwargs['binsize'] <0.005:
+        raise ValueError("For the saturation correction of LE, the time resolution has to be greater than or equal to 5 milliseconds\n")
     hdulist = fits.open(screenfile)
     time_screen = hdulist[1].data.field("TIME")
     pi          = hdulist[1].data.field("PI")
@@ -174,18 +179,31 @@ def saturation_cor(screenfile, evtfile, **kwargs):
     rate_corrected = (lc_y_detbox0 * coeff0/19 + 
         lc_y_detbox1 * coeff1/20 + 
         lc_y_detbox2 * coeff2/19)*58/(detnum_cor_coeff)  #NORMALIZED for detector number
+    error_corrected = np.sqrt(rate_corrected)/time_resolution
+
+    ##
+    if kwargs['outfile']:
+        outfile = kwargs['outfile']
+        create_lightcurve_file(time_corrected, rate_corrected, error_corrected, outfile, binsize=binsize, starttime=tstart, stoptime=tstop)
+        print("-------------------------")
+        print("\n Lightcurve file {} is generated Successfully \n".format(outfile))
+
     return time_corrected, rate_corrected
 
 
 if __name__ == "__main__":
-    time_resolution = 0.005
-    x, y = saturation_cor("../sgr_262708467-262708468/P020402500803_LE_screen.fits",
-            "../sgr_262708457-262708477_NEWLE/HXMT_P020402500803_LE-Evt_FFFFFF_V1_L1P_NEW.FITS",
-            minPI=106, maxPI=1170, binsize=time_resolution, starttime=262708467, stoptime=262708468)
-    with open("LE_lixb_ch106-1170_saturation_corrected.dat", 'w')as fout:
-        for i in range(len(x)):
-            fout.write("%.8f %f %f\n"%(x[i], y[i], np.sqrt(y[i])/time_resolution))
-    plt.figure()
-    plt.errorbar(x, y , np.sqrt(y)/0.005, ds='steps-mid')
-    plt.show()
+    arguments = get_args(sys.argv)
+    evtfile = arguments['evtfile']
+    screenfile= arguments['screenfile']
+    binsize   = np.float(arguments['binsize'])
+    starttime = np.float(arguments['starttime'])
+    stoptime  = np.float(arguments['stoptime'])
+    minPI = np.int(arguments['minPI'])
+    maxPI = np.int(arguments['maxPI'])
+    outfile = arguments['outfile']
+
+    saturation_cor(screenfile, evtfile, minPI=minPI, maxPI=maxPI, binsize=binsize, starttime=starttime, stoptime=stoptime, outfile=outfile)
+    #saturation_cor("/Users/tuoyouli/Work/SGR1935/sgr_262708467-262708468/P020402500803_LE_screen.fits",
+    #        "/Users/tuoyouli/Work/SGR1935/sgr_262708457-262708477_NEWLE/HXMT_P020402500803_LE-Evt_FFFFFF_V1_L1P_NEW.FITS",
+    #        minPI=106, maxPI=1170, binsize=time_resolution, starttime=262708467, stoptime=262708468)
 

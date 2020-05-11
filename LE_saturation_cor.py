@@ -160,11 +160,11 @@ def saturation_cor(screenfile, evtfile, **kwargs):
     lc_x_detbox2, lc_y_detbox2 = genlc_bin(time_detbox2, bins=np.arange(tstart, tstop, time_resolution))
 
     #generate LC for forced trigger event based on bins of each detbox LC
-    fte_lc_x_detbox0, fte_lc_y_detbox0 = genlc_forcedtrigger(time_evt, evttype, detbox=detbox_evt, starttime=min(time_screen), stoptime=max(time_screen),
+    fte_lc_x_detbox0, fte_lc_y_detbox0 = genlc_forcedtrigger(time_evt, evttype, detbox=detbox_evt, starttime=tstart, stoptime=tstop,
             binsize=time_resolution, boxnum=0)
-    fte_lc_x_detbox1, fte_lc_y_detbox1 = genlc_forcedtrigger(time_evt, evttype, detbox=detbox_evt, starttime=min(time_screen), stoptime=max(time_screen),
+    fte_lc_x_detbox1, fte_lc_y_detbox1 = genlc_forcedtrigger(time_evt, evttype, detbox=detbox_evt, starttime=tstart, stoptime=tstop,
             binsize=time_resolution, boxnum=1)
-    fte_lc_x_detbox2, fte_lc_y_detbox2 = genlc_forcedtrigger(time_evt, evttype, detbox=detbox_evt, starttime=min(time_screen), stoptime=max(time_screen),
+    fte_lc_x_detbox2, fte_lc_y_detbox2 = genlc_forcedtrigger(time_evt, evttype, detbox=detbox_evt, starttime=tstart, stoptime=tstop,
             binsize=time_resolution, boxnum=2)
 
 

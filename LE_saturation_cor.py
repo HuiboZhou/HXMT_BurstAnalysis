@@ -38,6 +38,7 @@ def create_lightcurve_file(time, rate, error, outfile, **kwargs):
     hdulist[1].header['CLOCKAPP']= FALSE
     hdulist[1].header['TSTART']  = kwargs['starttime']
     hdulist[1].header['TSTOP']   = kwargs['stoptime']
+    hdulist[1].writeto(outfile,overwrite=True)
 
 def get_args(argv):
     keywords = []
@@ -87,10 +88,26 @@ def select_oneboxtime(time, boxnum=0, **kwargs):
     #parameters
     channelmin = kwargs['minPI']
     channelmax = kwargs['maxPI']
-    new_time = time[(np.isin(detid,le_small_detid))&
-            (channel>=channelmin)&
-            (channel<=channelmax)&
-            (detbox==boxnum)]
+
+#    new_time = time[(np.isin(detid,le_small_detid))&
+#            (channel>=channelmin)&
+#            (channel<=channelmax)&
+#            (detbox==boxnum)]
+    if boxnum == 0:
+        new_time = time[(np.isin(detid,le_small_detid))&
+                (channel>=channelmin)&
+                (channel<=channelmax)&
+                (detid<=31)]
+    elif boxnum == 1:
+        new_time = time[(np.isin(detid,le_small_detid))&
+                (channel>=channelmin)&
+                (channel<=channelmax)&
+                (detid>=32)&(detid<=63)]
+    elif boxnum == 2:
+        new_time = time[(np.isin(detid,le_small_detid))&
+                (channel>=channelmin)&
+                (channel<=channelmax)&
+                (detid>=64)]
     return new_time
 
 def genlc_forcedtrigger(time_evt, evttype, detbox, **kwargs):
@@ -115,7 +132,7 @@ def coeff_forcedtrigger_rate(time, rate, detboxid=0):
         detnum = 20
     if detboxid == 2:
         detnum = 19
-    coeff = np.array([x*1000./x if x>0 else 0 for x in rate])
+    coeff = np.array([1000./x if x>0 else 0 for x in rate])
     return coeff
 
 def detnum_cor(time, *args):
@@ -152,12 +169,16 @@ def saturation_cor(screenfile, evtfile, **kwargs):
     time_detbox0 = select_oneboxtime(time_screen, boxnum=0, detid=detid, detbox=detbox_screen, pi=pi, minPI=kwargs['minPI'], maxPI=kwargs['maxPI'])
     time_detbox1 = select_oneboxtime(time_screen, boxnum=1, detid=detid, detbox=detbox_screen, pi=pi, minPI=kwargs['minPI'], maxPI=kwargs['maxPI'])
     time_detbox2 = select_oneboxtime(time_screen, boxnum=2, detid=detid, detbox=detbox_screen, pi=pi, minPI=kwargs['minPI'], maxPI=kwargs['maxPI'])
+    print("Entries for detBox0: ", len(time_detbox0))
+    print("Entries for detBox1: ", len(time_detbox1))
+    print("Entries for detBox2: ", len(time_detbox2))
 
     #generate LC for each detbox
     time_resolution = kwargs['binsize']
     lc_x_detbox0, lc_y_detbox0 = genlc_bin(time_detbox0, bins=np.arange(tstart, tstop, time_resolution))
     lc_x_detbox1, lc_y_detbox1 = genlc_bin(time_detbox1, bins=np.arange(tstart, tstop, time_resolution))
     lc_x_detbox2, lc_y_detbox2 = genlc_bin(time_detbox2, bins=np.arange(tstart, tstop, time_resolution))
+
 
     #generate LC for forced trigger event based on bins of each detbox LC
     fte_lc_x_detbox0, fte_lc_y_detbox0 = genlc_forcedtrigger(time_evt, evttype, detbox=detbox_evt, starttime=tstart, stoptime=tstop,
@@ -168,21 +189,29 @@ def saturation_cor(screenfile, evtfile, **kwargs):
             binsize=time_resolution, boxnum=2)
 
 
-    coeff0 = coeff_forcedtrigger_rate(fte_lc_x_detbox0, fte_lc_y_detbox0)
-    coeff1 = coeff_forcedtrigger_rate(fte_lc_x_detbox1, fte_lc_y_detbox1)
-    coeff2 = coeff_forcedtrigger_rate(fte_lc_x_detbox2, fte_lc_y_detbox2)
+    coeff0 = coeff_forcedtrigger_rate(fte_lc_x_detbox0, fte_lc_y_detbox0, detboxid=0)
+    coeff1 = coeff_forcedtrigger_rate(fte_lc_x_detbox1, fte_lc_y_detbox1, detboxid=1)
+    coeff2 = coeff_forcedtrigger_rate(fte_lc_x_detbox2, fte_lc_y_detbox2, detboxid=2)
 
     detnum_cor_coeff = detnum_cor(fte_lc_x_detbox0, fte_lc_y_detbox0, fte_lc_y_detbox1, fte_lc_y_detbox2)
-
 
     time_corrected = lc_x_detbox0
     rate_corrected = (lc_y_detbox0 * coeff0/19 + 
         lc_y_detbox1 * coeff1/20 + 
         lc_y_detbox2 * coeff2/19)*58/(detnum_cor_coeff)  #NORMALIZED for detector number
-    error_corrected = np.sqrt(rate_corrected)/time_resolution
+
+    #ERROR
+    error_detbox0 = np.sqrt(lc_y_detbox0/time_resolution)
+    error_detbox1 = np.sqrt(lc_y_detbox1/time_resolution)
+    error_detbox2 = np.sqrt(lc_y_detbox2/time_resolution)
+    error_corrected = 58*np.sqrt((error_detbox0*coeff0/detnum_cor_coeff/19)**2 + 
+            (error_detbox1*coeff1/detnum_cor_coeff/20)**2 + 
+            (error_detbox2*coeff2/detnum_cor_coeff/19)**2 )
+    #NOTE:use propogating error instead of counts error.
+    #error_corrected = np.sqrt(rate_corrected/time_resolution)
 
     ##
-    if kwargs['outfile']:
+    if 'outfile' in kwargs:
         outfile = kwargs['outfile']
         create_lightcurve_file(time_corrected, rate_corrected, error_corrected, outfile, binsize=binsize, starttime=tstart, stoptime=tstop)
         print("-------------------------")
@@ -200,10 +229,8 @@ if __name__ == "__main__":
     stoptime  = np.float(arguments['stoptime'])
     minPI = np.int(arguments['minPI'])
     maxPI = np.int(arguments['maxPI'])
-    outfile = arguments['outfile']
+    if 'outfile' in arguments:
+        outfile = arguments['outfile']
 
     saturation_cor(screenfile, evtfile, minPI=minPI, maxPI=maxPI, binsize=binsize, starttime=starttime, stoptime=stoptime, outfile=outfile)
-    #saturation_cor("/Users/tuoyouli/Work/SGR1935/sgr_262708467-262708468/P020402500803_LE_screen.fits",
-    #        "/Users/tuoyouli/Work/SGR1935/sgr_262708457-262708477_NEWLE/HXMT_P020402500803_LE-Evt_FFFFFF_V1_L1P_NEW.FITS",
-    #        minPI=106, maxPI=1170, binsize=time_resolution, starttime=262708467, stoptime=262708468)
 

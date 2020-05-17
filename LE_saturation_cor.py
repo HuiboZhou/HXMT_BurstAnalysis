@@ -64,11 +64,12 @@ def genlc(data,binsize=1,fig=False,rate=True,pannel=True):
     return lc_time,lc
 
 def genlc_bin(data, bins, rate=True):
+    time_resolution = bins[1]-bins[0]
     lc = np.histogram(data,bins=bins)[0]
     if rate:
         binsize=bins[1]-bins[0]
         lc = lc/binsize # calculate counts rate instead of counts
-    lc_time = np.histogram(data,bins=bins)[1][0:-1]
+    lc_time = np.histogram(data,bins=bins)[1][0:-1] + time_resolution/2
     #null = np.where(lc == 0)
     #lc = np.delete(lc,null)
     #lc_time = np.delete(lc_time,null)
@@ -93,21 +94,6 @@ def select_oneboxtime(time, boxnum=0, **kwargs):
             (channel>=channelmin)&
             (channel<=channelmax)&
             (detbox==boxnum)]
-#    if boxnum == 0:
-#        new_time = time[(np.isin(detid,le_small_detid))&
-#                (channel>=channelmin)&
-#                (channel<=channelmax)&
-#                (detid<=31)]
-#    elif boxnum == 1:
-#        new_time = time[(np.isin(detid,le_small_detid))&
-#                (channel>=channelmin)&
-#                (channel<=channelmax)&
-#                (detid>=32)&(detid<=63)]
-#    elif boxnum == 2:
-#        new_time = time[(np.isin(detid,le_small_detid))&
-#                (channel>=channelmin)&
-#                (channel<=channelmax)&
-#                (detid>=64)]
     return new_time
 
 def genlc_forcedtrigger(time_evt, evttype, detbox, **kwargs):
@@ -122,7 +108,7 @@ def genlc_forcedtrigger(time_evt, evttype, detbox, **kwargs):
     time_evt = time_evt[(time_evt>=tstart)&(time_evt<=tstop)]
     forcedtrigger_time = time_evt[(evttype==1)&(detbox==boxnum)] #select forced trigger evt for one detBox 
     forcedtrigger_lc_x, forcedtrigger_lc_y = genlc_bin(forcedtrigger_time, 
-            bins=np.arange(tstart, tstop, time_resolution))
+            bins=np.arange(tstart, tstop+time_resolution, time_resolution))
     return forcedtrigger_lc_x, forcedtrigger_lc_y
 
 def coeff_forcedtrigger_rate(time, rate, detboxid=0):
@@ -179,9 +165,9 @@ def saturation_cor(screenfile, evtfile, **kwargs):
 
     #generate LC for each detbox
     time_resolution = kwargs['binsize']
-    lc_x_detbox0, lc_y_detbox0 = genlc_bin(time_detbox0, bins=np.arange(tstart, tstop, time_resolution))
-    lc_x_detbox1, lc_y_detbox1 = genlc_bin(time_detbox1, bins=np.arange(tstart, tstop, time_resolution))
-    lc_x_detbox2, lc_y_detbox2 = genlc_bin(time_detbox2, bins=np.arange(tstart, tstop, time_resolution))
+    lc_x_detbox0, lc_y_detbox0 = genlc_bin(time_detbox0, bins=np.arange(tstart, tstop+time_resolution, time_resolution))
+    lc_x_detbox1, lc_y_detbox1 = genlc_bin(time_detbox1, bins=np.arange(tstart, tstop+time_resolution, time_resolution))
+    lc_x_detbox2, lc_y_detbox2 = genlc_bin(time_detbox2, bins=np.arange(tstart, tstop+time_resolution, time_resolution))
 
 #    fig, (ax1,ax2) = plt.subplots(2,1, sharex=True)
 #    ax1.errorbar(lc_x_detbox0, lc_y_detbox0, drawstyle="steps-mid")

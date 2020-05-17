@@ -1,5 +1,7 @@
 # A burst analysis toolkit for HXMT data
 
+See wiki site for more details: https://github.com/tuoyl/HXMT_BurstAnalysis/wiki
+
 ## LE staturation correction
 
 Correct the light curve for each DetBox of LE telescope based on the forced trigger event rate of the three LE DetBoxs. The light curves of the three DetBoxs are weighted and averaged according to the number of detectors in each DetBox.

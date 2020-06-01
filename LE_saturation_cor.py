@@ -139,8 +139,8 @@ def detnum_cor(time, *args):
 
 
 def saturation_cor(screenfile, evtfile, **kwargs):
-    if kwargs['binsize'] <0.005:
-        raise ValueError("For the saturation correction of LE, the time resolution has to be greater than or equal to 5 milliseconds\n")
+#    if kwargs['binsize'] <0.005:
+#        raise ValueError("For the saturation correction of LE, the time resolution has to be greater than or equal to 5 milliseconds\n")
     hdulist = fits.open(screenfile)
     time_screen = hdulist[1].data.field("TIME")
     pi          = hdulist[1].data.field("PI")
